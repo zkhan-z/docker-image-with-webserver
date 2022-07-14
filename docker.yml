@@ -1,0 +1,78 @@
+---
+- name: "AWS Docker"
+  hosts: "webservers"
+  become: yes
+  tasks:
+    - name: Update all packages
+      yum:
+        name: '*'
+        state: latest
+        update_only: yes
+
+    - name: Ensure a list of yum packages are installed
+      yum:
+        name: "{{ packages }}"
+        state: latest
+        update_cache: yes
+      vars:
+        packages:
+        - python-pip
+        - yum-utils
+        - device-mapper-persistent-data
+        - lvm2
+        - amazon-linux-extras
+
+    - name: Add extras repository
+      shell: yum-config-manager --enable extras
+
+    - name: Install docker-ce (centos) via amazon-linux-extras packages
+      shell: "amazon-linux-extras install docker=18.06.1 -y"
+
+    - name: Enable Docker CE service at startup
+      service:
+        name: docker
+        state: started
+        enabled: yes
+
+    - name: Ensure Python pip packages are installed
+      pip:
+        name: "{{ packages }}"
+      vars:
+        packages:
+        - requests
+
+    - name: Creating a Persistent Volume Dir
+      file:
+        path: "./pv"
+        state: directory
+
+    - name: Copying the HTML code in the Directory
+      copy: 
+        src: "./index.html"
+        dest: "./pv"
+
+    - name: Copying the HTML to Document Root
+      copy: 
+        src: "./index.html"
+        dest: "/var/www/html/"
+
+    - name: Install httpd packages 
+      yum:
+        name: httpd
+        state: present
+
+    - name: Make sure a service is running
+      ansible.builtin.systemd:
+        state: started
+        name: httpd
+    
+    - name: Enable service httpd and ensure it is not masked
+      ansible.builtin.systemd:
+        name: httpd
+        enabled: yes
+        masked: no
+
+    - name: Reload service httpd, in all cases
+      ansible.builtin.systemd:
+        name: httpd
+        state: reloaded
